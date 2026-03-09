@@ -1,0 +1,21 @@
+{
+  "video": {
+    "resolution": [1920, 1080],
+    "fps": 30,
+    "transition_duration": 1.0
+  },
+  "tts": {
+    "voice": "xiaoxiao",
+    "rate": "+0%",
+    "volume": "+0%"
+  },
+  "script": {
+    "target_duration_minutes": 4,
+    "words_per_minute": 150,
+    "style": "conversational"
+  },
+  "image_selection": {
+    "max_images": 5,
+    "preferred_types": ["architecture", "framework", "results"]
+  }
+}
