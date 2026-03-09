@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: arxiv-podcast
+    runtime: python
+    plan: standard
+    buildCommand: pip install -r requirements.txt
+    startCommand: python web_server.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        value: 8080
+      - key: OPENAI_API_KEY
+        sync: false  # 在 Render 控制台设置
+    disk:
+      name: output
+      mountPath: /opt/render/project/output
+      sizeGB: 5
