@@ -1,0 +1,35 @@
+name: Deploy to Streamlit
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Test imports
+      run: |
+        python -c "from src.fetcher import ArxivFetcher"
+        python -c "from src.analyzer import ContentAnalyzer"
+        python -c "from src.script_generator import PodcastScriptGenerator"
+        python -c "from src.tts_engine import TTSEngine"
+        python -c "import app"
+        echo "All imports successful!"
+    
+    - name: Check app.py exists
+      run: |
+        test -f app.py && echo "app.py exists" || exit 1
