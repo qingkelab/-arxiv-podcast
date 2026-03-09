@@ -18,11 +18,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, HttpUrl
 import uvicorn
 
-from fetcher import ArxivFetcher
-from analyzer import ContentAnalyzer
-from script_generator import PodcastScriptGenerator
-from tts_engine import TTSEngine
-from video_generator import VideoGenerator
+from src.fetcher import ArxivFetcher
+from src.analyzer import ContentAnalyzer
+from src.script_generator import PodcastScriptGenerator
+from src.tts_engine import TTSEngine
+from src.video_generator import VideoGenerator
 
 app = FastAPI(title="Arxiv Podcast Generator", version="1.0.0")
 
