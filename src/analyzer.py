@@ -18,7 +18,7 @@ class ContentAnalyzer:
             api_key=api_key or os.getenv('OPENAI_API_KEY'),
             base_url=base_url or os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
         )
-        self.model = "kimi-k2-0711-preview"  # 可以根据需要调整
+        self.model = os.getenv('ANALYZE_MODEL', 'kimi-k2-0711-preview')  # 可配置模型
     
     def analyze(self, paper_data: Dict) -> Dict:
         """分析论文，返回结构化结果"""
