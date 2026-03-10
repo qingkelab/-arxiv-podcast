@@ -152,7 +152,7 @@ def main():
             
             analyze_model = st.selectbox(
                 "分析模型",
-                ["kimi-k2-0711-preview", "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+                ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
                 index=0,
                 help="用于分析论文的模型",
                 key="analyze_model_input"
@@ -160,7 +160,7 @@ def main():
             
             script_model = st.selectbox(
                 "脚本生成模型",
-                ["kimi-k2-0711-preview", "moonshot-v1-8k", "moonshot-v1-32k"],
+                ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
                 index=0,
                 help="用于生成播客脚本的模型",
                 key="script_model_input"
@@ -234,13 +234,14 @@ def main():
     # 从 session state 获取配置
     api_key = st.session_state.get('api_key', '')
     base_url = st.session_state.get('base_url', 'https://api.moonshot.cn/v1')
-    analyze_model = st.session_state.get('analyze_model', 'kimi-k2-0711-preview')
-    script_model = st.session_state.get('script_model', 'kimi-k2-0711-preview')
+    analyze_model = st.session_state.get('analyze_model', 'moonshot-v1-8k')
+    script_model = st.session_state.get('script_model', 'moonshot-v1-8k')
     podcast_style = st.session_state.get('podcast_style_input', 'single')
     
     # 调试信息（临时）
-    st.write(f"Debug: API Key 前10位: {api_key[:10] if api_key else 'None'}...")
+    st.write(f"Debug: API Key 前15位: {api_key[:15] if api_key else 'None'}...")
     st.write(f"Debug: Base URL: {base_url}")
+    st.write(f"Debug: 分析模型: {analyze_model}")
     
     if not api_key:
         st.error("API Key 为空，请重新保存配置")

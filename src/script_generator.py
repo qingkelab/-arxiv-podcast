@@ -11,11 +11,15 @@ class PodcastScriptGenerator:
     """生成 3-5 分钟的播客脚本"""
     
     def __init__(self, api_key: str = None, base_url: str = None, style: str = "single"):
+        # 强制使用传入的参数
+        self.api_key = api_key
+        self.base_url = base_url or 'https://api.moonshot.cn/v1'
+        
         self.client = OpenAI(
-            api_key=api_key or os.getenv('OPENAI_API_KEY'),
-            base_url=base_url or os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+            api_key=self.api_key,
+            base_url=self.base_url
         )
-        self.model = os.getenv('SCRIPT_MODEL', 'kimi-k2-0711-preview')
+        self.model = os.getenv('SCRIPT_MODEL', 'moonshot-v1-8k')
         self.style = style  # "single" 单人或 "dialogue" 双人对话
         
         # 语速: 约 150 词/分钟

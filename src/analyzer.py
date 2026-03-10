@@ -14,11 +14,18 @@ class ContentAnalyzer:
     """使用 LLM 分析论文内容，提取核心要点"""
     
     def __init__(self, api_key: str = None, base_url: str = None):
+        # 强制使用传入的参数，不使用环境变量
+        self.api_key = api_key
+        self.base_url = base_url or 'https://api.moonshot.cn/v1'
+        
+        print(f"[Analyzer] API Key: {self.api_key[:15] if self.api_key else 'None'}...")
+        print(f"[Analyzer] Base URL: {self.base_url}")
+        
         self.client = OpenAI(
-            api_key=api_key or os.getenv('OPENAI_API_KEY'),
-            base_url=base_url or os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+            api_key=self.api_key,
+            base_url=self.base_url
         )
-        self.model = os.getenv('ANALYZE_MODEL', 'kimi-k2-0711-preview')  # 可配置模型
+        self.model = os.getenv('ANALYZE_MODEL', 'moonshot-v1-8k')  # 使用标准模型名
     
     def analyze(self, paper_data: Dict) -> Dict:
         """分析论文，返回结构化结果"""
@@ -26,6 +33,7 @@ class ContentAnalyzer:
         # 构建分析提示
         prompt = self._build_analysis_prompt(paper_data)
         
+        print(f"[Analyzer] 使用模型: {self.model}")
         print("正在分析论文内容...")
         response = self.client.chat.completions.create(
             model=self.model,
