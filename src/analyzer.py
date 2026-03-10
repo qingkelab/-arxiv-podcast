@@ -5,9 +5,6 @@ import os
 import json
 from typing import Dict, List
 from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 class ContentAnalyzer:
@@ -18,14 +15,23 @@ class ContentAnalyzer:
         self.api_key = api_key
         self.base_url = base_url or 'https://api.moonshot.cn/v1'
         
-        print(f"[Analyzer] API Key: {self.api_key[:15] if self.api_key else 'None'}...")
-        print(f"[Analyzer] Base URL: {self.base_url}")
+        # 延迟导入和创建 client，确保使用正确的参数
+        self._client = None
         
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        import os
         self.model = os.getenv('ANALYZE_MODEL', 'moonshot-v1-8k')  # 使用标准模型名
+    
+    @property
+    def client(self):
+        if self._client is None:
+            print(f"[Analyzer] 创建 OpenAI 客户端")
+            print(f"[Analyzer] API Key: {self.api_key[:15] if self.api_key else 'None'}...")
+            print(f"[Analyzer] Base URL: {self.base_url}")
+            self._client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url
+            )
+        return self._client
     
     def analyze(self, paper_data: Dict) -> Dict:
         """分析论文，返回结构化结果"""

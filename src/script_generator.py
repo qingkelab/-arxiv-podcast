@@ -4,7 +4,6 @@
 import json
 from typing import Dict, List
 from openai import OpenAI
-import os
 
 
 class PodcastScriptGenerator:
@@ -15,10 +14,7 @@ class PodcastScriptGenerator:
         self.api_key = api_key
         self.base_url = base_url or 'https://api.moonshot.cn/v1'
         
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        import os
         self.model = os.getenv('SCRIPT_MODEL', 'moonshot-v1-8k')
         self.style = style  # "single" 单人或 "dialogue" 双人对话
         
@@ -38,10 +34,15 @@ class PodcastScriptGenerator:
     def _generate_single(self, analysis: Dict) -> Dict:
         """生成单人播客脚本"""
         
+        client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url
+        )
+        
         prompt = self._build_script_prompt(analysis)
         
         print("正在生成单人播客脚本...")
-        response = self.client.chat.completions.create(
+        response = client.chat.completions.create(
             model=self.model,
             messages=[
                 {
@@ -70,10 +71,15 @@ class PodcastScriptGenerator:
     def _generate_dialogue(self, analysis: Dict) -> Dict:
         """生成双人对话播客脚本"""
         
+        client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url
+        )
+        
         prompt = self._build_dialogue_prompt(analysis)
         
         print("正在生成双人对话播客脚本...")
-        response = self.client.chat.completions.create(
+        response = client.chat.completions.create(
             model=self.model,
             messages=[
                 {
