@@ -236,6 +236,15 @@ def main():
     base_url = st.session_state.get('base_url', 'https://api.moonshot.cn/v1')
     analyze_model = st.session_state.get('analyze_model', 'kimi-k2-0711-preview')
     script_model = st.session_state.get('script_model', 'kimi-k2-0711-preview')
+    podcast_style = st.session_state.get('podcast_style_input', 'single')
+    
+    # 调试信息（临时）
+    st.write(f"Debug: API Key 前10位: {api_key[:10] if api_key else 'None'}...")
+    st.write(f"Debug: Base URL: {base_url}")
+    
+    if not api_key:
+        st.error("API Key 为空，请重新保存配置")
+        return
     
     # 主界面
     url = st.text_input(
@@ -275,6 +284,7 @@ def main():
                 
                 # 2. 分析
                 status.info("🧠 正在分析论文...")
+                st.write(f"Debug: 传入 analyzer 的 API Key 前10位: {api_key[:10] if api_key else 'None'}...")
                 analyzer = ContentAnalyzer(api_key=api_key, base_url=base_url)
                 analysis = analyzer.analyze(paper_data)
                 progress_bar.progress(50)
