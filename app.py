@@ -125,6 +125,10 @@ def main():
     st.markdown('<h1 class="main-header">🎙️ Arxiv Podcast</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">将学术论文转换为 3-5 分钟播客</p>', unsafe_allow_html=True)
     
+    # 初始化 session state
+    if 'api_configured' not in st.session_state:
+        st.session_state.api_configured = False
+    
     # 侧边栏配置
     with st.sidebar:
         st.header("⚙️ 配置")
@@ -135,34 +139,51 @@ def main():
                 "Kimi API Key",
                 type="password",
                 placeholder="sk-...",
-                help="你的 Kimi API Key，不会存储在服务器上"
+                help="你的 Kimi API Key，不会存储在服务器上",
+                key="api_key_input"
             )
             
             base_url = st.text_input(
                 "API Base URL",
                 value="https://api.moonshot.cn/v1",
-                help="Kimi API 地址"
+                help="Kimi API 地址",
+                key="base_url_input"
             )
             
             analyze_model = st.selectbox(
                 "分析模型",
                 ["kimi-k2-0711-preview", "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
                 index=0,
-                help="用于分析论文的模型"
+                help="用于分析论文的模型",
+                key="analyze_model_input"
             )
             
             script_model = st.selectbox(
                 "脚本生成模型",
                 ["kimi-k2-0711-preview", "moonshot-v1-8k", "moonshot-v1-32k"],
                 index=0,
-                help="用于生成播客脚本的模型"
+                help="用于生成播客脚本的模型",
+                key="script_model_input"
             )
+            
+            # 保存配置按钮
+            if st.button("💾 保存配置", use_container_width=True):
+                if api_key:
+                    st.session_state.api_key = api_key
+                    st.session_state.base_url = base_url
+                    st.session_state.analyze_model = analyze_model
+                    st.session_state.script_model = script_model
+                    st.session_state.api_configured = True
+                    st.success("✅ 配置已保存")
+                else:
+                    st.error("请输入 API Key")
         
         # 播客风格
         podcast_style = st.radio(
             "播客风格",
             ["single", "dialogue"],
-            format_func=lambda x: "🎤 单人播客" if x == "single" else "🎭 双人对话 (小北♀ & 阿杰♂)"
+            format_func=lambda x: "🎤 单人播客" if x == "single" else "🎭 双人对话 (小北♀ & 阿杰♂)",
+            key="podcast_style_input"
         )
         
         # 语音配置（仅单人模式显示）
@@ -176,7 +197,8 @@ def main():
                     "yunjian": "云健 (男声-新闻)",
                     "yunxi": "云希 (男声-年轻)",
                     "yunxia": "云夏 (男声-讲故事)"
-                }[x]
+                }[x],
+                key="voice_input"
             )
         else:
             st.info("双人对话模式将使用两种不同音色分别合成小北和阿杰的语音")
@@ -189,7 +211,8 @@ def main():
                 "1920x1080": "1920x1080 (横屏)",
                 "1080x1920": "1080x1920 (竖屏-短视频)",
                 "1280x720": "1280x720 (高清)"
-            }[x]
+            }[x],
+            key="resolution_input"
         )
         
         st.divider()
@@ -202,11 +225,17 @@ def main():
         - 视频生成
         """)
     
-    # 检查 API Key
-    if not api_key:
-        st.warning("⚠️ 请在侧边栏输入你的 Kimi API Key")
+    # 检查 API 配置
+    if not st.session_state.api_configured:
+        st.warning("⚠️ 请在侧边栏输入你的 Kimi API Key 并点击保存")
         st.info("API Key 仅用于本次会话，不会存储在服务器上")
         return
+    
+    # 从 session state 获取配置
+    api_key = st.session_state.get('api_key', '')
+    base_url = st.session_state.get('base_url', 'https://api.moonshot.cn/v1')
+    analyze_model = st.session_state.get('analyze_model', 'kimi-k2-0711-preview')
+    script_model = st.session_state.get('script_model', 'kimi-k2-0711-preview')
     
     # 主界面
     url = st.text_input(
@@ -235,12 +264,6 @@ def main():
         status = st.empty()
         
         try:
-            # 设置环境变量（仅当前会话）
-            os.environ['OPENAI_API_KEY'] = api_key
-            os.environ['OPENAI_BASE_URL'] = base_url
-            os.environ['ANALYZE_MODEL'] = analyze_model
-            os.environ['SCRIPT_MODEL'] = script_model
-            
             # 1. 获取论文
             status.info("📄 正在获取论文...")
             fetcher = ArxivFetcher()
