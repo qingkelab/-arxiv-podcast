@@ -5,6 +5,10 @@ import os
 from pathlib import Path
 from typing import List, Dict, Tuple
 from PIL import Image, ImageDraw, ImageFont
+
+# Pillow 10 compatibility: provide deprecated constant if needed
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
 # import numpy as np  # 可选依赖
 
 
