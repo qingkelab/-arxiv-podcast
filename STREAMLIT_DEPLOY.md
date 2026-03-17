@@ -15,29 +15,9 @@ streamlit run app.py
 确保 GitHub 仓库包含：
 - `app.py` - Streamlit 主程序
 - `requirements.txt` - 依赖列表
-- `.streamlit/config.toml` - 配置文件（可选）
+- `.streamlit/config.toml` - 配置文件（已内置）
 
-### 2. 创建 Streamlit 配置文件
-
-```bash
-mkdir -p .streamlit
-cat > .streamlit/config.toml << 'EOF'
-[server]
-headless = true
-port = 8501
-enableCORS = false
-enableXsrfProtection = false
-
-[theme]
-primaryColor = "#667eea"
-backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#1e1e2e"
-textColor = "#fafafa"
-font = "sans serif"
-EOF
-```
-
-### 3. 部署到 Streamlit Cloud
+### 2. 部署到 Streamlit Cloud
 
 1. 访问 https://streamlit.io/cloud
 2. 用 GitHub 账号登录
@@ -45,18 +25,18 @@ EOF
 4. 选择你的仓库
 5. 设置：
    - **Main file path**: `app.py`
-   - **Secrets**: 添加 `OPENAI_API_KEY`
+   - **Secrets**: 可选（默认在界面输入 Kimi API Key）
 
-### 4. 配置 Secrets
+### 3. 配置 Secrets（可选）
 
 在 Streamlit Cloud 控制台：
 ```
 Advanced settings → Secrets
 ```
 
-添加：
+如果你不想每次手动输入 API Key，可加：
 ```toml
-OPENAI_API_KEY = "your-api-key-here"
+KIMI_API_KEY = "your-api-key-here"
 ```
 
 ## 限制
@@ -68,8 +48,8 @@ OPENAI_API_KEY = "your-api-key-here"
 
 **适合场景：**
 - 演示和测试
-- 短时间任务（< 30 分钟）
-- 脚本生成（不生成视频）
+- 脚本生成/音频生成
+- 视频生成（可能受限于 CPU 与超时）
 
 ## 替代方案
 

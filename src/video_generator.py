@@ -11,10 +11,11 @@ from PIL import Image, ImageDraw, ImageFont
 class VideoGenerator:
     """生成视频播客"""
     
-    def __init__(self, resolution: Tuple[int, int] = (1920, 1080)):
+    def __init__(self, resolution: Tuple[int, int] = (1920, 1080), enable_motion: bool = True):
         self.resolution = resolution
         self.width, self.height = resolution
         self.fps = 30
+        self.enable_motion = enable_motion
     
     def generate(
         self,
@@ -34,7 +35,7 @@ class VideoGenerator:
         try:
             from moviepy.editor import (
                 AudioFileClip, ImageClip, CompositeVideoClip,
-                concatenate_videoclips, TextClip
+                concatenate_videoclips, TextClip, vfx
             )
             
             # 加载音频
@@ -65,6 +66,9 @@ class VideoGenerator:
                         segment,
                         segment_duration
                     )
+                
+                if self.enable_motion:
+                    clip = clip.fx(vfx.fadein, 0.3).fx(vfx.fadeout, 0.3)
                 
                 video_clips.append(clip)
             
@@ -189,8 +193,9 @@ class VideoGenerator:
         
         clip = ImageClip(str(temp_path), duration=duration)
         
-        # 添加 Ken Burns 效果（缓慢缩放）
-        # 简单实现：轻微放大
+        # 添加轻微缩放的 Ken Burns 效果
+        if self.enable_motion:
+            clip = clip.resize(lambda t: 1.0 + 0.02 * (t / max(duration, 0.1)))
         
         return clip
     

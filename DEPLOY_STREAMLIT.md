@@ -14,10 +14,10 @@
 6. Main file path: `app.py`
 7. 点击 "Deploy"
 
-### 步骤 3：配置环境变量
+### 步骤 3：配置环境变量（可选）
 在 App 页面 → Settings → Secrets，添加：
 ```toml
-OPENAI_API_KEY = "sk-你的API密钥"
+KIMI_API_KEY = "sk-你的API密钥"
 ```
 
 ### 步骤 4：重启应用
@@ -54,7 +54,7 @@ https://your-app-name.streamlit.app
 **建议用途：**
 - 脚本生成（推荐）
 - 音频生成（可能成功）
-- 视频生成（容易超时，建议用自托管）
+- 视频生成（可能超时，建议低分辨率）
 
 ---
 

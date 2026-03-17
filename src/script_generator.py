@@ -9,7 +9,14 @@ from openai import OpenAI
 class PodcastScriptGenerator:
     """生成 3-5 分钟的播客脚本"""
     
-    def __init__(self, api_key: str = None, base_url: str = None, style: str = "single"):
+    def __init__(
+        self,
+        api_key: str = None,
+        base_url: str = None,
+        style: str = "single",
+        target_minutes: int = 4,
+        quality_pass: bool = True
+    ):
         # 强制使用传入的参数
         self.api_key = api_key
         self.base_url = base_url or 'https://api.moonshot.cn/v1'
@@ -17,19 +24,29 @@ class PodcastScriptGenerator:
         import os
         self.model = os.getenv('SCRIPT_MODEL', 'moonshot-v1-8k')
         self.style = style  # "single" 单人或 "dialogue" 双人对话
+        self.target_minutes = max(3, min(5, int(target_minutes)))
+        self.quality_pass = quality_pass
         
         # 语速: 约 150 词/分钟
         # 3-5 分钟 = 450-750 词
         self.target_word_count = 600
         self.words_per_minute = 150
+        # 中文语速估计（字/分钟）
+        self.chars_per_minute = 280
     
     def generate(self, analysis: Dict) -> Dict:
         """生成完整播客脚本"""
         
         if self.style == "dialogue":
-            return self._generate_dialogue(analysis)
+            script = self._generate_dialogue(analysis)
         else:
-            return self._generate_single(analysis)
+            script = self._generate_single(analysis)
+        
+        # 可选二次润色（质量控制）
+        if self.quality_pass:
+            script = self._quality_refine(script, analysis)
+        
+        return script
     
     def _generate_single(self, analysis: Dict) -> Dict:
         """生成单人播客脚本"""
@@ -52,7 +69,7 @@ class PodcastScriptGenerator:
 - 用类比解释复杂概念
 - 有节奏感，适当的停顿和强调
 - 开头抓人，结尾有力
-- 总时长控制在 3-5 分钟（约 600 词）"""
+- 总时长控制在 3-5 分钟（中文口语）"""
                 },
                 {
                     "role": "user",
@@ -91,7 +108,7 @@ class PodcastScriptGenerator:
 - 两人有自然的互动、插话、呼应、玩笑
 - 用类比和例子解释复杂概念
 - 避免照本宣科，像朋友间的真实对话
-- 总时长控制在 3-5 分钟（约 600-800 词）"""
+- 总时长控制在 3-5 分钟（中文口语）"""
                 },
                 {
                     "role": "user",
@@ -110,6 +127,7 @@ class PodcastScriptGenerator:
     def _build_dialogue_prompt(self, analysis: Dict) -> str:
         """构建双人对话脚本生成提示"""
         
+        target_chars = self.target_minutes * self.chars_per_minute
         return f"""请为以下学术论文撰写一个 3-5 分钟的双人对话科普播客脚本。
 
 论文信息:
@@ -126,7 +144,8 @@ class PodcastScriptGenerator:
 - 阿杰(嘉宾，男): AI研究员，专业背景，善于深入浅出解释技术，语气沉稳但有温度
 
 技术要求:
-- 总字数: 约 600-800 词（3-5 分钟）
+- 语言: 中文口语化
+- 总长度: 约 {target_chars} 字（目标 {self.target_minutes} 分钟）
 - 语速: 正常对话速度，两人交替自然
 - 风格: 轻松、有趣、易懂，像朋友聊天
 
@@ -169,6 +188,7 @@ class PodcastScriptGenerator:
     def _build_script_prompt(self, analysis: Dict) -> str:
         """构建脚本生成提示"""
         
+        target_chars = self.target_minutes * self.chars_per_minute
         return f"""请为以下学术论文撰写一个 3-5 分钟的科普播客脚本。
 
 论文信息:
@@ -181,7 +201,8 @@ class PodcastScriptGenerator:
 - 有趣之处: {', '.join(analysis.get('interesting_aspects', []))}
 
 技术要求:
-- 总字数: 约 600 词（3-5 分钟）
+- 语言: 中文口语化
+- 总长度: 约 {target_chars} 字（目标 {self.target_minutes} 分钟）
 - 语速: 正常对话速度
 - 风格: 轻松、有趣、易懂
 
@@ -270,15 +291,20 @@ class PodcastScriptGenerator:
         if not segments:
             segments = self._auto_segment(script_text)
         
-        # 计算时间
+        # 计算时间（兼容中英文）
         total_words = sum(s['word_count'] for s in segments)
-        estimated_duration = total_words / self.words_per_minute * 60
+        total_chars = sum(len(s['text']) for s in segments)
+        estimated_duration = max(
+            total_words / self.words_per_minute * 60,
+            total_chars / self.chars_per_minute * 60
+        )
         
         return {
             'title': analysis.get('title', ''),
             'arxiv_id': analysis.get('arxiv_id', ''),
             'segments': segments,
             'total_word_count': total_words,
+            'total_char_count': total_chars,
             'estimated_duration_seconds': round(estimated_duration, 1),
             'estimated_duration_text': f"{estimated_duration/60:.1f} 分钟",
             'full_text': script_text
@@ -288,7 +314,11 @@ class PodcastScriptGenerator:
         """创建段落对象"""
         text = ' '.join(text_lines)
         word_count = len(text.split())
-        duration = word_count / self.words_per_minute * 60
+        char_count = len(text)
+        duration = max(
+            word_count / self.words_per_minute * 60,
+            char_count / self.chars_per_minute * 60
+        )
         
         type_names = {
             'intro': '开场',
@@ -303,6 +333,7 @@ class PodcastScriptGenerator:
             'type_name': type_names.get(seg_type, seg_type),
             'text': text,
             'word_count': word_count,
+            'char_count': char_count,
             'estimated_duration_seconds': round(duration, 1)
         }
     
@@ -373,17 +404,72 @@ class PodcastScriptGenerator:
         
         # 计算总字数和时长
         total_words = sum(len(d['text'].split()) for d in dialogue)
-        estimated_duration = total_words / self.words_per_minute * 60
+        total_chars = sum(len(d['text']) for d in dialogue)
+        estimated_duration = max(
+            total_words / self.words_per_minute * 60,
+            total_chars / self.chars_per_minute * 60
+        )
         
         return {
             'title': analysis.get('title', ''),
             'arxiv_id': analysis.get('arxiv_id', ''),
             'dialogue': dialogue,
             'total_word_count': total_words,
+            'total_char_count': total_chars,
             'estimated_duration_seconds': round(estimated_duration, 1),
             'estimated_duration_text': f"{estimated_duration/60:.1f} 分钟",
             'full_text': script_text
         }
+
+    def _quality_refine(self, script: Dict, analysis: Dict) -> Dict:
+        """对脚本做一次轻量润色以提升可读性与节奏"""
+        client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url
+        )
+        
+        original = script.get('full_text', '')
+        if not original.strip():
+            return script
+        
+        target_chars = self.target_minutes * self.chars_per_minute
+        
+        if script.get('style') == 'dialogue' or 'dialogue' in script:
+            instruction = f"""请对下面的双人对话脚本进行润色，要求：
+1) 中文口语化、自然、有节奏
+2) 避免术语堆砌，必要术语要解释
+3) 控制总长度约 {target_chars} 字（目标 {self.target_minutes} 分钟）
+4) 保持“ 小北: / 阿杰: ”格式
+5) 不添加新事实，不引入论文外内容
+仅输出润色后的脚本，不要解释。"""
+        else:
+            instruction = f"""请对下面的单人播客脚本进行润色，要求：
+1) 中文口语化、自然、有节奏
+2) 避免术语堆砌，必要术语要解释
+3) 控制总长度约 {target_chars} 字（目标 {self.target_minutes} 分钟）
+4) 保持 [开场][问题][方法][结果][结尾] 段落标记
+5) 不添加新事实，不引入论文外内容
+仅输出润色后的脚本，不要解释。"""
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "你是资深科技播客编辑，擅长把技术内容写得通俗好听。"},
+                {"role": "user", "content": instruction + "\n\n" + original}
+            ],
+            temperature=0.4,
+            max_tokens=3000
+        )
+        
+        refined_text = response.choices[0].message.content
+        if script.get('style') == 'dialogue' or 'dialogue' in script:
+            refined = self._parse_dialogue_script(refined_text, analysis)
+            refined['style'] = 'dialogue'
+        else:
+            refined = self._parse_script(refined_text, analysis)
+            refined['style'] = 'single'
+        
+        return refined
     
     def get_dialogue_text_for_tts(self, script: Dict, speaker: str = None) -> str:
         """获取对话中指定说话人的文本（用于 TTS）"""

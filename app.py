@@ -27,23 +27,27 @@ sys.path.insert(0, str(Path(__file__).parent / 'src'))
 # CSS 样式
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700&family=ZCOOL+XiaoWei&display=swap');
     .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        font-family: 'ZCOOL XiaoWei', serif;
+        font-size: 2.8rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        background: linear-gradient(90deg, #0f172a 0%, #2563eb 55%, #0ea5e9 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.3rem;
     }
     .subtitle {
         text-align: center;
-        color: #666;
+        color: #475569;
         margin-bottom: 2rem;
-        font-size: 1.1rem;
+        font-size: 1.05rem;
+        font-family: 'Noto Sans SC', sans-serif;
     }
     .stProgress > div > div {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%) !important;
+        background: linear-gradient(90deg, #0ea5e9 0%, #2563eb 100%) !important;
     }
     .api-input {
         background: #f8f9fa;
@@ -59,7 +63,7 @@ st.markdown("""
         white-space: pre-wrap;
     }
     .dialogue-xiaobei {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
         color: white;
         padding: 0.8rem 1rem;
         border-radius: 12px 12px 12px 4px;
@@ -73,6 +77,21 @@ st.markdown("""
         border-radius: 12px 12px 4px 12px;
         margin: 0.5rem 0 0.5rem auto;
         max-width: 85%;
+    }
+    .metric-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+    }
+    .hint-badge {
+        display: inline-block;
+        background: #e0f2fe;
+        color: #075985;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        margin-right: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -170,10 +189,21 @@ def _segments_from_dialogue(dialogue: list) -> list:
     return segments
 
 
+def _estimate_duration_text(script: dict) -> str:
+    sec = script.get('estimated_duration_seconds')
+    if sec is None:
+        return "未知"
+    return f"{sec/60:.1f} 分钟"
+
+
+def _length_metric(script: dict) -> int:
+    return int(script.get('total_char_count') or script.get('total_word_count') or 0)
+
+
 def main():
     # 标题
-    st.markdown('<h1 class="main-header">🎙️ Arxiv Podcast</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">将学术论文转换为 3-5 分钟播客</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Arxiv Podcast Studio</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">把论文变成 3-5 分钟的中文双人播客与视频</p>', unsafe_allow_html=True)
     
     # 初始化 session state
     if 'api_configured' not in st.session_state:
@@ -189,6 +219,7 @@ def main():
                 "Kimi API Key",
                 type="password",
                 placeholder="sk-...",
+                value=os.getenv("KIMI_API_KEY", ""),
                 help="你的 Kimi API Key，不会存储在服务器上",
                 key="api_key_input"
             )
@@ -265,6 +296,28 @@ def main():
             key="resolution_input"
         )
         
+        target_minutes = st.slider(
+            "目标时长（分钟）",
+            min_value=3,
+            max_value=5,
+            value=4,
+            step=1,
+            key="target_minutes_input"
+        )
+        
+        quality_pass = st.checkbox(
+            "脚本质量优化（二次润色）",
+            value=True,
+            help="会额外调用一次模型，优化可读性与节奏",
+            key="quality_pass_input"
+        )
+        
+        video_motion = st.checkbox(
+            "视频动效（轻微缩放 + 淡入淡出）",
+            value=True,
+            key="video_motion_input"
+        )
+        
         gen_audio = st.checkbox("生成语音", value=True, key="gen_audio_input")
         gen_video = st.checkbox("生成视频", value=True, key="gen_video_input")
         
@@ -292,12 +345,16 @@ def main():
     podcast_style = st.session_state.get('podcast_style_input', 'single')
     gen_audio = st.session_state.get('gen_audio_input', True)
     gen_video = st.session_state.get('gen_video_input', True)
+    target_minutes = st.session_state.get('target_minutes_input', 4)
+    quality_pass = st.session_state.get('quality_pass_input', True)
+    video_motion = st.session_state.get('video_motion_input', True)
     
     if not api_key:
         st.error("API Key 为空，请重新保存配置")
         return
     
     # 主界面
+    st.markdown('<span class="hint-badge">支持 arxiv.org/abs 或 arxiv.org/html</span>', unsafe_allow_html=True)
     url = st.text_input(
         "Arxiv 论文链接",
         placeholder="https://arxiv.org/abs/2312.03689"
@@ -348,7 +405,9 @@ def main():
                 generator = PodcastScriptGenerator(
                     api_key=api_key, 
                     base_url=base_url,
-                    style=podcast_style
+                    style=podcast_style,
+                    target_minutes=target_minutes,
+                    quality_pass=quality_pass
                 )
                 script = generator.generate(analysis)
                 progress_bar.progress(75)
@@ -388,89 +447,79 @@ def main():
                     
                     if selected_images:
                         resolution_tuple = _parse_resolution(resolution)
-                        video_gen = VideoGenerator(resolution=resolution_tuple)
+                        video_gen = VideoGenerator(
+                            resolution=resolution_tuple,
+                            enable_motion=video_motion
+                        )
                         video_path = output_dir / "podcast.mp4"
                         video_gen.generate(script, audio_path, selected_images, video_path)
                     else:
                         st.warning("未找到可用论文图片，将使用纯色标题卡片生成视频。")
                         resolution_tuple = _parse_resolution(resolution)
-                        video_gen = VideoGenerator(resolution=resolution_tuple)
+                        video_gen = VideoGenerator(
+                            resolution=resolution_tuple,
+                            enable_motion=video_motion
+                        )
                         video_path = output_dir / "podcast.mp4"
                         video_gen.generate(script, audio_path, [], video_path)
                     progress_bar.progress(100)
                 
                 # 显示结果
                 progress_bar.progress(100)
-                status.success(f"✅ 生成完成！预计时长: {script.get('estimated_duration_text', '未知')}")
+                status.success(f"✅ 生成完成！预计时长: {_estimate_duration_text(script)}")
                 
-                # 根据风格显示脚本
-                st.subheader("📄 播客脚本")
+                st.subheader("📦 结果总览")
                 
-                if podcast_style == "dialogue":
-                    # 显示双人对话
-                    render_dialogue(script.get('dialogue', []))
-                    
-                    # 显示纯文本版本
-                    with st.expander("查看纯文本版本"):
-                        st.text_area("脚本内容", script['full_text'], height=300)
-                else:
-                    # 显示单人播客
-                    st.text_area("脚本内容", script['full_text'], height=300)
+                metrics = st.columns(4)
+                with metrics[0]:
+                    st.markdown(f"<div class='metric-card'>🕒 预计时长<br><strong>{_estimate_duration_text(script)}</strong></div>", unsafe_allow_html=True)
+                with metrics[1]:
+                    st.markdown(f"<div class='metric-card'>🧾 字数估计<br><strong>{_length_metric(script)}</strong></div>", unsafe_allow_html=True)
+                with metrics[2]:
+                    st.markdown(f"<div class='metric-card'>🖼️ 论文图片<br><strong>{len([i for i in paper_data.get('images', []) if i.get('local_path')])}</strong></div>", unsafe_allow_html=True)
+                with metrics[3]:
+                    st.markdown(f"<div class='metric-card'>🎭 风格<br><strong>{'双人对话' if podcast_style=='dialogue' else '单人播客'}</strong></div>", unsafe_allow_html=True)
                 
-                # 下载按钮
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.download_button(
-                        "📝 下载脚本 (.txt)",
-                        script['full_text'],
-                        file_name=f"{arxiv_id}_script.txt",
-                        mime="text/plain",
-                        use_container_width=True
-                    )
-                with col2:
-                    # JSON 格式下载
-                    script_json = json.dumps(script, ensure_ascii=False, indent=2)
-                    st.download_button(
-                        "📊 下载结构化数据 (.json)",
-                        script_json,
-                        file_name=f"{arxiv_id}_script.json",
-                        mime="application/json",
-                        use_container_width=True
-                    )
-                
-                st.download_button(
-                    "📄 下载论文 HTML (.html)",
-                    paper_data.get('raw_html', ''),
-                    file_name=f"{arxiv_id}.html",
-                    mime="text/html",
-                    use_container_width=True
+                tab_script, tab_audio, tab_video, tab_analysis, tab_download = st.tabs(
+                    ["📄 脚本", "🔊 音频", "🎬 视频", "📋 分析", "⬇️ 下载"]
                 )
                 
-                # 语音与视频
-                if audio_path and audio_path.exists():
-                    st.subheader("🔊 播客音频")
-                    st.audio(audio_path.read_bytes(), format="audio/mp3")
-                    st.download_button(
-                        "🎧 下载音频 (.mp3)",
-                        audio_path.read_bytes(),
-                        file_name=f"{arxiv_id}_podcast.mp3",
-                        mime="audio/mp3",
-                        use_container_width=True
-                    )
+                with tab_script:
+                    st.subheader("📄 播客脚本")
+                    if podcast_style == "dialogue":
+                        render_dialogue(script.get('dialogue', []))
+                        with st.expander("查看纯文本版本"):
+                            st.text_area("脚本内容", script['full_text'], height=300)
+                    else:
+                        st.text_area("脚本内容", script['full_text'], height=320)
                 
-                if video_path and video_path.exists():
-                    st.subheader("🎬 播客视频")
-                    st.video(video_path.read_bytes())
-                    st.download_button(
-                        "🎬 下载视频 (.mp4)",
-                        video_path.read_bytes(),
-                        file_name=f"{arxiv_id}_podcast.mp4",
-                        mime="video/mp4",
-                        use_container_width=True
-                    )
+                with tab_audio:
+                    if audio_path and audio_path.exists():
+                        st.audio(audio_path.read_bytes(), format="audio/mp3")
+                        st.download_button(
+                            "🎧 下载音频 (.mp3)",
+                            audio_path.read_bytes(),
+                            file_name=f"{arxiv_id}_podcast.mp3",
+                            mime="audio/mp3",
+                            use_container_width=True
+                        )
+                    else:
+                        st.info("未生成音频。你可以在左侧勾选“生成语音”。")
                 
-                # 显示分析摘要
-                with st.expander("📋 论文分析摘要"):
+                with tab_video:
+                    if video_path and video_path.exists():
+                        st.video(video_path.read_bytes())
+                        st.download_button(
+                            "🎬 下载视频 (.mp4)",
+                            video_path.read_bytes(),
+                            file_name=f"{arxiv_id}_podcast.mp4",
+                            mime="video/mp4",
+                            use_container_width=True
+                        )
+                    else:
+                        st.info("未生成视频。你可以在左侧勾选“生成视频”。")
+                
+                with tab_analysis:
                     st.write(f"**核心贡献**: {analysis.get('core_contribution', '')}")
                     st.write(f"**解决的问题**: {analysis.get('problem_statement', '')}")
                     st.write(f"**方法概述**: {analysis.get('method_summary', '')}")
@@ -478,6 +527,34 @@ def main():
                         st.write("**关键结果**:")
                         for result in analysis['key_results']:
                             st.write(f"  - {result}")
+                
+                with tab_download:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.download_button(
+                            "📝 下载脚本 (.txt)",
+                            script['full_text'],
+                            file_name=f"{arxiv_id}_script.txt",
+                            mime="text/plain",
+                            use_container_width=True
+                        )
+                    with col2:
+                        script_json = json.dumps(script, ensure_ascii=False, indent=2)
+                        st.download_button(
+                            "📊 下载结构化数据 (.json)",
+                            script_json,
+                            file_name=f"{arxiv_id}_script.json",
+                            mime="application/json",
+                            use_container_width=True
+                        )
+                    
+                    st.download_button(
+                        "📄 下载论文 HTML (.html)",
+                        paper_data.get('raw_html', ''),
+                        file_name=f"{arxiv_id}.html",
+                        mime="text/html",
+                        use_container_width=True
+                    )
                 
         except Exception as e:
             st.error(f"❌ 处理失败: {str(e)}")
