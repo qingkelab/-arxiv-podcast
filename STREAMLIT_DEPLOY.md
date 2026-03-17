@@ -37,6 +37,7 @@ Advanced settings → Secrets
 如果你不想每次手动输入 API Key，可加：
 ```toml
 KIMI_API_KEY = "your-api-key-here"
+KIMICODE_API_KEY = "your-kimi-code-key-here"
 ```
 
 ## 限制

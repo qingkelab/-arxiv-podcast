@@ -200,16 +200,16 @@ def _length_metric(script: dict) -> int:
     return int(script.get('total_char_count') or script.get('total_word_count') or 0)
 
 
-def _validate_api_key(api_key: str, base_url: str) -> bool:
+def _validate_api_key(api_key: str, base_url: str) -> tuple:
     if not api_key:
-        return False
+        return False, "API Key 为空"
     try:
         from openai import OpenAI
         client = OpenAI(api_key=api_key, base_url=base_url)
         _ = client.models.list()
-        return True
-    except Exception:
-        return False
+        return True, "API Key 有效"
+    except Exception as e:
+        return False, str(e)
 
 
 def main():
@@ -227,25 +227,61 @@ def main():
         
         # API 配置
         with st.expander("🔑 API 配置", expanded=True):
+            platform = st.selectbox(
+                "平台选择",
+                ["Moonshot (CN)", "Moonshot (Global)", "Kimi Code"],
+                index=0,
+                help="Moonshot 通用模型 或 Kimi Code 编程平台",
+                key="platform_input"
+            )
+            
+            platform_defaults = {
+                "Moonshot (CN)": {
+                    "base_url": "https://api.moonshot.cn/v1",
+                    "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]
+                },
+                "Moonshot (Global)": {
+                    "base_url": "https://api.moonshot.ai/v1",
+                    "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]
+                },
+                "Kimi Code": {
+                    "base_url": "https://api.kimi.com/coding/v1",
+                    "models": ["kimi-for-coding"]
+                }
+            }
+            
+            if "platform_last" not in st.session_state:
+                st.session_state.platform_last = platform
+            
+            if platform != st.session_state.platform_last:
+                st.session_state.base_url_input = platform_defaults[platform]["base_url"]
+                st.session_state.analyze_model_input = platform_defaults[platform]["models"][0]
+                st.session_state.script_model_input = platform_defaults[platform]["models"][0]
+                st.session_state.platform_last = platform
+            
+            api_key_env = os.getenv("KIMI_API_KEY", "")
+            if platform == "Kimi Code":
+                api_key_env = os.getenv("KIMICODE_API_KEY", os.getenv("KIMI_CODE_API_KEY", ""))
+            
             api_key = st.text_input(
                 "Kimi API Key",
                 type="password",
                 placeholder="sk-...",
-                value=os.getenv("KIMI_API_KEY", ""),
+                value=api_key_env,
                 help="你的 Kimi API Key，不会存储在服务器上",
                 key="api_key_input"
             )
             
             base_url = st.text_input(
                 "API Base URL",
-                value="https://api.moonshot.cn/v1",
-                help="Kimi API 地址",
+                value=platform_defaults[platform]["base_url"],
+                help="Kimi API 地址（不同平台不同地址）",
                 key="base_url_input"
             )
             
             analyze_model = st.selectbox(
                 "分析模型",
-                ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+                platform_defaults[platform]["models"],
                 index=0,
                 help="用于分析论文的模型",
                 key="analyze_model_input"
@@ -253,7 +289,7 @@ def main():
             
             script_model = st.selectbox(
                 "脚本生成模型",
-                ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+                platform_defaults[platform]["models"],
                 index=0,
                 help="用于生成播客脚本的模型",
                 key="script_model_input"
@@ -262,10 +298,11 @@ def main():
             col_api_1, col_api_2 = st.columns(2)
             with col_api_1:
                 if st.button("✅ 校验 API Key", use_container_width=True):
-                    if _validate_api_key(api_key, base_url):
+                    ok, msg = _validate_api_key(api_key, base_url)
+                    if ok:
                         st.success("API Key 有效")
                     else:
-                        st.error("API Key 无效或无法连接")
+                        st.error(f"API Key 无效或无法连接：{msg}")
             with col_api_2:
                 # 保存配置按钮
                 if st.button("💾 保存配置", use_container_width=True):

@@ -18,6 +18,7 @@
 在 App 页面 → Settings → Secrets，添加：
 ```toml
 KIMI_API_KEY = "sk-你的API密钥"
+KIMICODE_API_KEY = "sk-你的Kimi Code密钥"
 ```
 
 ### 步骤 4：重启应用
