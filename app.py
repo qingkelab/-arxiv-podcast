@@ -200,6 +200,18 @@ def _length_metric(script: dict) -> int:
     return int(script.get('total_char_count') or script.get('total_word_count') or 0)
 
 
+def _validate_api_key(api_key: str, base_url: str) -> bool:
+    if not api_key:
+        return False
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        _ = client.models.list()
+        return True
+    except Exception:
+        return False
+
+
 def main():
     # 标题
     st.markdown('<h1 class="main-header">Arxiv Podcast Studio</h1>', unsafe_allow_html=True)
@@ -247,17 +259,25 @@ def main():
                 key="script_model_input"
             )
             
-            # 保存配置按钮
-            if st.button("💾 保存配置", use_container_width=True):
-                if api_key:
-                    st.session_state.api_key = api_key
-                    st.session_state.base_url = base_url
-                    st.session_state.analyze_model = analyze_model
-                    st.session_state.script_model = script_model
-                    st.session_state.api_configured = True
-                    st.success("✅ 配置已保存")
-                else:
-                    st.error("请输入 API Key")
+            col_api_1, col_api_2 = st.columns(2)
+            with col_api_1:
+                if st.button("✅ 校验 API Key", use_container_width=True):
+                    if _validate_api_key(api_key, base_url):
+                        st.success("API Key 有效")
+                    else:
+                        st.error("API Key 无效或无法连接")
+            with col_api_2:
+                # 保存配置按钮
+                if st.button("💾 保存配置", use_container_width=True):
+                    if api_key:
+                        st.session_state.api_key = api_key
+                        st.session_state.base_url = base_url
+                        st.session_state.analyze_model = analyze_model
+                        st.session_state.script_model = script_model
+                        st.session_state.api_configured = True
+                        st.success("✅ 配置已保存")
+                    else:
+                        st.error("请输入 API Key")
         
         # 播客风格
         podcast_style = st.radio(
