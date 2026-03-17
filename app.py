@@ -120,6 +120,56 @@ def render_dialogue(dialogue: list):
             """, unsafe_allow_html=True)
 
 
+def _parse_resolution(resolution_text: str) -> tuple:
+    parts = resolution_text.lower().split('x')
+    if len(parts) != 2:
+        return (1920, 1080)
+    try:
+        return (int(parts[0]), int(parts[1]))
+    except ValueError:
+        return (1920, 1080)
+
+
+def _segments_from_dialogue(dialogue: list) -> list:
+    """将对话粗分为 5 段，便于配图生成视频"""
+    if not dialogue:
+        return []
+    
+    buckets = 5
+    size = max(1, len(dialogue) // buckets)
+    types = ['intro', 'problem', 'method', 'results', 'outro']
+    type_names = {
+        'intro': '开场',
+        'problem': '问题背景',
+        'method': '方法介绍',
+        'results': '结果与意义',
+        'outro': '结尾'
+    }
+    
+    segments = []
+    for i in range(buckets):
+        start = i * size
+        end = (i + 1) * size if i < buckets - 1 else len(dialogue)
+        chunk = dialogue[start:end]
+        if not chunk:
+            continue
+        text = ' '.join([c.get('text', '') for c in chunk]).strip()
+        if not text:
+            continue
+        word_count = len(text.split())
+        duration = word_count / 150 * 60
+        seg_type = types[i] if i < len(types) else 'general'
+        segments.append({
+            'type': seg_type,
+            'type_name': type_names.get(seg_type, seg_type),
+            'text': text,
+            'word_count': word_count,
+            'estimated_duration_seconds': round(duration, 1)
+        })
+    
+    return segments
+
+
 def main():
     # 标题
     st.markdown('<h1 class="main-header">🎙️ Arxiv Podcast</h1>', unsafe_allow_html=True)
@@ -215,6 +265,9 @@ def main():
             key="resolution_input"
         )
         
+        gen_audio = st.checkbox("生成语音", value=True, key="gen_audio_input")
+        gen_video = st.checkbox("生成视频", value=True, key="gen_video_input")
+        
         st.divider()
         st.markdown("### 📋 关于")
         st.markdown("""
@@ -237,11 +290,8 @@ def main():
     analyze_model = st.session_state.get('analyze_model', 'moonshot-v1-8k')
     script_model = st.session_state.get('script_model', 'moonshot-v1-8k')
     podcast_style = st.session_state.get('podcast_style_input', 'single')
-    
-    # 调试信息（临时）
-    st.write(f"Debug: API Key 前15位: {api_key[:15] if api_key else 'None'}...")
-    st.write(f"Debug: Base URL: {base_url}")
-    st.write(f"Debug: 分析模型: {analyze_model}")
+    gen_audio = st.session_state.get('gen_audio_input', True)
+    gen_video = st.session_state.get('gen_video_input', True)
     
     if not api_key:
         st.error("API Key 为空，请重新保存配置")
@@ -269,6 +319,8 @@ def main():
         from fetcher import ArxivFetcher
         from analyzer import ContentAnalyzer
         from script_generator import PodcastScriptGenerator
+        from tts_engine import TTSEngine
+        from video_generator import VideoGenerator
         
         progress_bar = st.progress(0)
         status = st.empty()
@@ -285,13 +337,14 @@ def main():
                 
                 # 2. 分析
                 status.info("🧠 正在分析论文...")
-                st.write(f"Debug: 传入 analyzer 的 API Key 前10位: {api_key[:10] if api_key else 'None'}...")
+                os.environ['ANALYZE_MODEL'] = analyze_model
                 analyzer = ContentAnalyzer(api_key=api_key, base_url=base_url)
                 analysis = analyzer.analyze(paper_data)
                 progress_bar.progress(50)
                 
                 # 3. 生成脚本
                 status.info("✍️ 正在生成播客脚本...")
+                os.environ['SCRIPT_MODEL'] = script_model
                 generator = PodcastScriptGenerator(
                     api_key=api_key, 
                     base_url=base_url,
@@ -299,6 +352,52 @@ def main():
                 )
                 script = generator.generate(analysis)
                 progress_bar.progress(75)
+                
+                # 4. 生成语音
+                audio_path = None
+                if gen_audio:
+                    status.info("🔊 正在生成语音...")
+                    tts = TTSEngine(voice=voice)
+                    audio_dir = output_dir / "audio"
+                    audio_dir.mkdir(parents=True, exist_ok=True)
+                    if podcast_style == "dialogue":
+                        audio_info = tts.generate_dialogue(script.get('dialogue', []), audio_dir)
+                        audio_path = audio_dir / "dialogue_merged.mp3"
+                        tts.merge_dialogue_audio(audio_info.get('segments', []), audio_path)
+                    else:
+                        tts_text = generator.get_full_text_for_tts(script)
+                        audio_path = audio_dir / "podcast.mp3"
+                        tts.generate(tts_text, audio_path)
+                    progress_bar.progress(85)
+                
+                # 5. 生成视频
+                video_path = None
+                if gen_video:
+                    status.info("🎬 正在生成视频...")
+                    # 选择图片
+                    selected_images = analyzer.select_images_for_script(
+                        analysis, paper_data.get('images', [])
+                    )
+                    
+                    # 对话模式补充段落信息
+                    if not script.get('segments') and script.get('dialogue'):
+                        script['segments'] = _segments_from_dialogue(script['dialogue'])
+                    
+                    if not audio_path:
+                        raise ValueError("生成视频需要先生成音频，请勾选“生成语音”。")
+                    
+                    if selected_images:
+                        resolution_tuple = _parse_resolution(resolution)
+                        video_gen = VideoGenerator(resolution=resolution_tuple)
+                        video_path = output_dir / "podcast.mp4"
+                        video_gen.generate(script, audio_path, selected_images, video_path)
+                    else:
+                        st.warning("未找到可用论文图片，将使用纯色标题卡片生成视频。")
+                        resolution_tuple = _parse_resolution(resolution)
+                        video_gen = VideoGenerator(resolution=resolution_tuple)
+                        video_path = output_dir / "podcast.mp4"
+                        video_gen.generate(script, audio_path, [], video_path)
+                    progress_bar.progress(100)
                 
                 # 显示结果
                 progress_bar.progress(100)
@@ -336,6 +435,37 @@ def main():
                         script_json,
                         file_name=f"{arxiv_id}_script.json",
                         mime="application/json",
+                        use_container_width=True
+                    )
+                
+                st.download_button(
+                    "📄 下载论文 HTML (.html)",
+                    paper_data.get('raw_html', ''),
+                    file_name=f"{arxiv_id}.html",
+                    mime="text/html",
+                    use_container_width=True
+                )
+                
+                # 语音与视频
+                if audio_path and audio_path.exists():
+                    st.subheader("🔊 播客音频")
+                    st.audio(audio_path.read_bytes(), format="audio/mp3")
+                    st.download_button(
+                        "🎧 下载音频 (.mp3)",
+                        audio_path.read_bytes(),
+                        file_name=f"{arxiv_id}_podcast.mp3",
+                        mime="audio/mp3",
+                        use_container_width=True
+                    )
+                
+                if video_path and video_path.exists():
+                    st.subheader("🎬 播客视频")
+                    st.video(video_path.read_bytes())
+                    st.download_button(
+                        "🎬 下载视频 (.mp4)",
+                        video_path.read_bytes(),
+                        file_name=f"{arxiv_id}_podcast.mp4",
+                        mime="video/mp4",
                         use_container_width=True
                     )
                 
